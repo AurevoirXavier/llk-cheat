@@ -17,7 +17,8 @@ pub enum CheatError {
     WriteProcessMemoryError,
     VirtualAllocError,
     CreateRemoteThreadError,
-//    MessageBoxError,
+    GetModuleHandleError,
+    GetProcAddressError,
 }
 
 pub fn find_window() -> Result<HWND, CheatError> {

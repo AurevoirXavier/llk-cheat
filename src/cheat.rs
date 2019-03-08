@@ -5,7 +5,6 @@ use winapi::{
 };
 // --- custom ---
 use super::util::*;
-use winapi::um::errhandlingapi::{GetLastError, SetLastError};
 
 const BASE_ADDRESS: u32 = 0x4C0E2C;
 
@@ -103,37 +102,31 @@ fn send_spy(handle: HANDLE) -> Result<(), CheatError> {
     use std::mem::size_of;
     // --- external ---
     use winapi::{
-        shared::{
-            minwindef::FARPROC,
-            windef::HWND,
-        },
+        shared::windef::HWND,
         um::{
-            libloaderapi::{LOAD_LIBRARY_SEARCH_DEFAULT_DIRS, GetProcAddress, GetModuleHandleA, LoadLibraryExA},
+            libloaderapi::{GetProcAddress, GetModuleHandleW},
             processthreadsapi::CreateRemoteThread,
             memoryapi::VirtualAllocEx,
-            winnt::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE, LPCSTR},
-            winuser::{MB_OK, MessageBoxA},
+            winnt::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE, LPCWSTR},
         },
     };
 
-    type MessageBoxProc = unsafe extern "system" fn(HWND, LPCSTR, LPCSTR, u32) -> i32;
-    struct Param<'a> {
-        cmd: u8,
-        message_box_proc: FARPROC,
-        message: &'a str,
+    type MessageBoxProc = unsafe extern "system" fn(HWND, LPCWSTR, LPCWSTR, u32) -> i32;
+    struct Param {
+        message_box_proc: *const u32,
+        message: LPCWSTR,
     }
 
     let param_ptr = {
         let size = size_of::<Param>();
-        unsafe {
-            println!("{}", LoadLibraryExA("user32".as_ptr() as _, 0 as _, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS).is_null());
-        }
-        let param = Param {
-            cmd: 0,
-            message_box_proc: unsafe { GetProcAddress(LoadLibraryExA("user32".as_ptr() as _, 0 as _, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS), "MessageBoxA" as *const str as _) },
-            message: "Hello game",
-        };
-        let ptr = unsafe { VirtualAllocEx(handle, 0 as _, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) };
+        let h_instance = unsafe { GetModuleHandleW("user32".encode_utf16().collect::<Vec<u16>>().as_ptr()) };
+        if h_instance.is_null() { return Err(CheatError::GetModuleHandleError); }
+        let message_box_proc = unsafe { GetProcAddress(h_instance, "MessageBoxW" as *const str as _) };
+        println!();
+        if message_box_proc.is_null() { return Err(CheatError::GetProcAddressError); }
+        let param = Param { message_box_proc: message_box_proc as _, message: "我爱你".encode_utf16().collect::<Vec<u16>>().as_ptr() };
+        println!("{:?}", param.message_box_proc);
+        let ptr = unsafe { VirtualAllocEx(handle, 0 as _, size, MEM_COMMIT, PAGE_READWRITE) };
 
         if ptr.is_null() { return Err(CheatError::VirtualAllocError); } else {
             write_process_memory(handle, ptr, &param as *const Param, size)?;
@@ -144,9 +137,9 @@ fn send_spy(handle: HANDLE) -> Result<(), CheatError> {
     type RemoteThreadProc = unsafe extern "system" fn(LPVOID) -> u32;
     extern "system" fn remote_thread_proc(l_param: LPVOID) -> u32 {
         let param = unsafe { &*(l_param as *const Param) };
-        if param.cmd == 0 {
-            let message = param.message as *const str as *const i8;
-//            unsafe { (*(param.message_box_proc as *mut MessageBoxProc))(0 as _, message, message, MB_OK); }
+        unsafe {
+            let message_box_proc = param.message_box_proc as *const _ as *const MessageBoxProc;
+            (*message_box_proc)(0 as _, param.message, param.message, 0);
         }
 
         0
@@ -170,9 +163,10 @@ pub fn option() -> Result<(), CheatError> {
     // --- std ---
     use std::io::{Write, stdin, stdout};
 
-    print!("1.hack game time\n2.hack chance\n3.hack tip\n4.hack score\n5.hack combo time\n6.hack cells\n7.send spy\nfunction: ");
-    stdout().flush().unwrap();
+//    print!("1.hack game time\n2.hack chance\n3.hack tip\n4.hack score\n5.hack combo time\n6.hack cells\n7.send spy\nfunction: ");
+//    stdout().flush().unwrap();
     let mut function = String::new();
+    function = "7".to_string();
     stdin().read_line(&mut function).unwrap();
 
     let handle = inject()?;

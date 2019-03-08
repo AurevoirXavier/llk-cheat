@@ -9,7 +9,9 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="87dd1bed-27e1-4649-a3d6-6816e6c46034" name="Default Changelist" comment="" />
+    <list default="true" id="87dd1bed-27e1-4649-a3d6-6816e6c46034" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,11 +38,20 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/cheat.rs">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="728">
+            <state relative-caret-position="338">
               <caret line="132" column="134" selection-start-line="132" selection-start-column="134" selection-end-line="132" selection-end-column="134" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/.gitignore">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="78">
+              <caret line="3" column="10" selection-start-line="3" selection-start-column="10" selection-end-line="3" selection-end-column="10" />
             </state>
           </provider>
         </entry>
@@ -111,6 +122,7 @@
         <option value="$PROJECT_DIR$/src/util.rs" />
         <option value="$PROJECT_DIR$/Cargo.toml" />
         <option value="$PROJECT_DIR$/src/cheat.rs" />
+        <option value="$PROJECT_DIR$/.gitignore" />
       </list>
     </option>
   </component>
@@ -265,7 +277,7 @@
       <workItem from="1551818195688" duration="6000000" />
       <workItem from="1551854900231" duration="12041000" />
       <workItem from="1551886655925" duration="3373000" />
-      <workItem from="1551984018312" duration="36515000" />
+      <workItem from="1551984018312" duration="36915000" />
     </task>
     <servers />
   </component>
@@ -281,12 +293,13 @@
     </history-entry>
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="157206000" />
+    <option name="totallyTimeSpent" value="157606000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-7" y="33" width="2062" height="1126" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2012987" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2012987" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
@@ -302,7 +315,7 @@
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
       <window_info anchor="right" id="Cargo" order="3" weight="0.32967034" />
-      <window_info active="true" anchor="right" id="Run" order="4" visible="true" weight="0.25724277" />
+      <window_info anchor="right" id="Run" order="4" visible="true" weight="0.25724277" />
     </layout>
     <layout-to-restore>
       <window_info content_ui="combo" id="Project" order="0" weight="0.18731269" />
@@ -453,8 +466,15 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/cheat.rs">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="728">
+        <state relative-caret-position="338">
           <caret line="132" column="134" selection-start-line="132" selection-start-column="134" selection-end-line="132" selection-end-column="134" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="78">
+          <caret line="3" column="10" selection-start-line="3" selection-start-column="10" selection-end-line="3" selection-end-column="10" />
         </state>
       </provider>
     </entry>

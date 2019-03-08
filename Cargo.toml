@@ -1,0 +1,8 @@
+[package]
+name = "llk-cheat"
+version = "0.1.0"
+authors = ["Xavier Lau"]
+edition = "2018"
+
+[dependencies]
+winapi = { version = "0.3.6", features = ["errhandlingapi", "libloaderapi", "memoryapi", "processthreadsapi", "winuser"] }

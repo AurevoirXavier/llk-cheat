@@ -111,10 +111,13 @@ fn send_spy(handle: HANDLE) -> Result<(), CheatError> {
         },
     };
 
+    const MESSAGE_LEN: usize = 100;
+    const REMOTE_THREAD_ROC_SIZE: usize = 0x1000;
+
     type MessageBoxProc = unsafe extern "system" fn(HWND, LPCWSTR, LPCWSTR, u32) -> i32;
     struct Param {
         message_box_proc: *const u32,
-        message: LPCWSTR,
+        message: [u16; MESSAGE_LEN],
     }
 
     let param_ptr = {
@@ -124,8 +127,16 @@ fn send_spy(handle: HANDLE) -> Result<(), CheatError> {
         let message_box_proc = unsafe { GetProcAddress(h_instance, "MessageBoxW" as *const str as _) };
         println!();
         if message_box_proc.is_null() { return Err(CheatError::GetProcAddressError); }
-        let param = Param { message_box_proc: message_box_proc as _, message: "我爱你".encode_utf16().collect::<Vec<u16>>().as_ptr() };
-        println!("{:?}", param.message_box_proc);
+        let param = Param {
+            message_box_proc: message_box_proc as _,
+            message: {
+                let mut message = [0; MESSAGE_LEN];
+                let mut slice = "Mua".encode_utf16().collect::<Vec<u16>>();
+                slice.resize(MESSAGE_LEN, 0);
+                message.clone_from_slice(&slice);
+                message
+            },
+        };
         let ptr = unsafe { VirtualAllocEx(handle, 0 as _, size, MEM_COMMIT, PAGE_READWRITE) };
 
         if ptr.is_null() { return Err(CheatError::VirtualAllocError); } else {
@@ -137,20 +148,17 @@ fn send_spy(handle: HANDLE) -> Result<(), CheatError> {
     type RemoteThreadProc = unsafe extern "system" fn(LPVOID) -> u32;
     extern "system" fn remote_thread_proc(l_param: LPVOID) -> u32 {
         let param = unsafe { &*(l_param as *const Param) };
-        unsafe {
-            let message_box_proc = param.message_box_proc as *const _ as *const MessageBoxProc;
-            (*message_box_proc)(0 as _, param.message, param.message, 0);
-        }
+        let message = &param.message as *const [u16] as *const u16;
+        unsafe { (*(&param.message_box_proc as *const _ as *const MessageBoxProc))(0 as _, message, message, 0); }
 
         0
     }
 
     let proc_ptr = {
-        let size = 0x1000;
-        let ptr = unsafe { VirtualAllocEx(handle, 0 as _, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) };
+        let ptr = unsafe { VirtualAllocEx(handle, 0 as _, REMOTE_THREAD_ROC_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) };
 
         if ptr.is_null() { return Err(CheatError::VirtualAllocError); } else {
-            write_process_memory(handle, ptr, remote_thread_proc as *const RemoteThreadProc, size)?;
+            write_process_memory(handle, ptr, remote_thread_proc as *const RemoteThreadProc, REMOTE_THREAD_ROC_SIZE)?;
             ptr
         }
     };
@@ -163,10 +171,9 @@ pub fn option() -> Result<(), CheatError> {
     // --- std ---
     use std::io::{Write, stdin, stdout};
 
-//    print!("1.hack game time\n2.hack chance\n3.hack tip\n4.hack score\n5.hack combo time\n6.hack cells\n7.send spy\nfunction: ");
-//    stdout().flush().unwrap();
+    print!("1.hack game time\n2.hack chance\n3.hack tip\n4.hack score\n5.hack combo time\n6.hack cells\n7.send spy\nfunction: ");
+    stdout().flush().unwrap();
     let mut function = String::new();
-    function = "7".to_string();
     stdin().read_line(&mut function).unwrap();
 
     let handle = inject()?;

@@ -1,17 +1,20 @@
+// --- std ---
+use std::collections::HashMap;
 // --- external ---
 use winapi::{
     shared::{
-        minwindef::{LPCVOID, LPVOID},
+        minwindef::{FARPROC, LPCVOID, LPVOID},
         windef::HWND,
     },
     um::winnt::HANDLE,
 };
 
-const WINDOW_NAME: &'static str = "Untitled - Notepad";
+const WINDOW_NAME: &'static str = "连连看5";
 
 #[derive(Debug)]
 pub enum CheatError {
     FindWindowError,
+    GetWindowThreadProcessIdError,
     OpenProcessError,
     ReadProcessMemoryError,
     WriteProcessMemoryError,
@@ -19,6 +22,7 @@ pub enum CheatError {
     CreateRemoteThreadError,
     GetModuleHandleError,
     GetProcAddressError,
+    Exit,
 }
 
 pub fn find_window() -> Result<HWND, CheatError> {
@@ -63,7 +67,7 @@ pub fn find_window() -> Result<HWND, CheatError> {
     Ok(hwnd)
 }
 
-pub fn find_process_id(hwnd: HWND) -> u32 {
+pub fn get_window_thread_process_id(hwnd: HWND) -> Result<u32, CheatError> {
     // --- external ---
     use winapi::{
         shared::minwindef::LPDWORD,
@@ -73,7 +77,7 @@ pub fn find_process_id(hwnd: HWND) -> u32 {
     let ptr: LPDWORD = &mut 0;
     unsafe {
         GetWindowThreadProcessId(hwnd, ptr);
-        *ptr
+        if ptr == 0 as _ { Err(CheatError::GetWindowThreadProcessIdError) } else { Ok(*ptr) }
     }
 }
 
@@ -105,4 +109,37 @@ pub fn write_process_memory<T>(handle: HANDLE, address: LPVOID, buffer: *const T
 
     let result = unsafe { WriteProcessMemory(handle, address, buffer as LPCVOID, size, 0 as _) };
     if result == 0 { Err(CheatError::WriteProcessMemoryError) } else { Ok(()) }
+}
+
+pub struct Processes(pub HashMap<String, FARPROC>);
+
+impl Processes {
+    pub fn new() -> Processes { Processes(HashMap::new()) }
+
+    fn get_proc_address(module: &str, process: &str) -> Result<FARPROC, CheatError> {
+        // --- external ---
+        use winapi::um::libloaderapi::{GetProcAddress, GetModuleHandleA};
+
+        let h_instance = unsafe { GetModuleHandleA(&*module.to_owned() as *const _ as _) };
+        if h_instance.is_null() { return Err(CheatError::GetModuleHandleError); }
+
+        let ptr = unsafe { GetProcAddress(h_instance, &*process.to_owned() as *const _ as _) };
+        if ptr.is_null() { Err(CheatError::GetProcAddressError) } else { Ok(ptr) }
+    }
+
+    pub fn add(mut self, module: &str, process: &str) -> Self {
+        let process_ptr;
+        loop {
+            match Processes::get_proc_address(module, process) {
+                Ok(ptr) => {
+                    process_ptr = ptr;
+                    break;
+                }
+                Err(e) => println!("{:?}", e)
+            }
+        }
+        self.0.insert(process.to_owned(), process_ptr);
+
+        self
+    }
 }

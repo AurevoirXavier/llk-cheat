@@ -16,86 +16,15 @@ use self::util::*;
 const BASE_ADDRESS: u32 = 0x4C0E2C;
 
 type MessageBoxProc = unsafe extern "system" fn(HWND, LPCWSTR, LPCWSTR, u32) -> i32;
+type RemoteThreadProc = unsafe extern "system" fn(LPVOID) -> u32;
 
 struct RemoteParam {
     command: u8,
     value_u32: u32,
     value_f32: f32,
-    message_box_proc: FARPROC,
-    message_box_title: [u16; 50],
-    message_box_content: [u16; 50],
-}
-
-impl RemoteParam {
-    fn new() -> RemoteParam {
-        RemoteParam {
-            command: 0,
-            value_u32: 0,
-            value_f32: 0.,
-            message_box_proc: 0 as _,
-            message_box_title: [0; 50],
-            message_box_content: [0; 50],
-        }
-    }
-
-    fn message_box_proc(&mut self, ptr: FARPROC) -> &mut Self {
-        self.message_box_proc = ptr;
-        self
-    }
-
-    fn message_box_title(&mut self, s: &str) -> &mut Self {
-        let mut slice = s.encode_utf16().collect::<Vec<u16>>();
-        slice.resize(self.message_box_title.len(), 0);
-        self.message_box_title.clone_from_slice(&slice);
-
-        self
-    }
-
-    fn message_box_content(&mut self, s: &str) -> &mut Self {
-        let mut slice = s.encode_utf16().collect::<Vec<u16>>();
-        slice.resize(self.message_box_content.len(), 0);
-        self.message_box_content.clone_from_slice(&slice);
-
-        self
-    }
-}
-
-type RemoteThreadProc = unsafe extern "system" fn(LPVOID) -> u32;
-
-extern "system" fn remote_thread_proc(l_param: LPVOID) -> u32 {
-    let param = unsafe { &*(l_param as *const RemoteParam) };
-    if param.command == 0 { unsafe { (*(&param.message_box_proc as *const _ as *const MessageBoxProc))(0 as _, &param.message_box_content as *const [u16] as *const u16, &param.message_box_title as *const [u16] as *const u16, 0); } } else {
-        let mut ptr = (BASE_ADDRESS + 0x14) as LPDWORD;
-        match param.command {
-            1 => unsafe {
-                //  exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x2C]
-                ptr = (*ptr + 0x20) as _;
-                ptr = (*ptr + 0x2C) as _;
-            }
-            2 => unsafe {
-                // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x3C]
-                ptr = (*ptr + 0x3FB8) as _;
-                ptr = (*ptr + 0x3C) as _;
-            }
-            3 => unsafe {
-                // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x38]
-                ptr = (*ptr + 0x3FB8) as _;
-                ptr = (*ptr + 0x38) as _;
-            }
-            4 => unsafe {
-                // exp = [[0x004C0E2C + 0x14] + 0x3F34]
-                ptr = (*ptr + 0x3F34) as _;
-            }
-            5 => unsafe {
-                // exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x30]
-                ptr = (*ptr + 0x20) as _;
-                ptr = (*ptr + 0x30) as _;
-            }
-            _ => (),
-        }
-    }
-
-    0
+    message_box_w_proc: FARPROC,
+    title: [u16; 100],
+    content: [u16; 100],
 }
 
 struct Cheat {
@@ -104,6 +33,113 @@ struct Cheat {
     remote_param: RemoteParam,
     remote_param_ptr: LPVOID,
     remote_proc_ptr: LPVOID,
+}
+
+impl RemoteParam {
+    fn new() -> RemoteParam {
+        RemoteParam {
+            command: 0,
+            value_u32: 0,
+            value_f32: 0.,
+            title: [0; 100],
+            content: [0; 100],
+            message_box_w_proc: 0 as _,
+        }
+    }
+
+    fn command(&mut self, command: u8) -> &mut Self {
+        self.command = command;
+        self
+    }
+
+    fn value_u32(&mut self, value: u32) -> &mut Self {
+        self.value_u32 = value;
+        self
+    }
+
+    fn value_f32(&mut self, value: f32) -> &mut Self {
+        self.value_f32 = value;
+        self
+    }
+
+    fn message_box_proc(&mut self, ptr: FARPROC) -> &mut Self {
+        self.message_box_w_proc = ptr;
+        self
+    }
+
+    fn title(&mut self, s: &str) -> &mut Self {
+        let mut slice = s.encode_utf16().collect::<Vec<u16>>();
+        slice.resize(self.title.len(), 0);
+        self.title.clone_from_slice(&slice);
+
+        self
+    }
+
+    fn content(&mut self, s: &str) -> &mut Self {
+        let mut slice = s.encode_utf16().collect::<Vec<u16>>();
+        slice.resize(self.content.len(), 0);
+        self.content.clone_from_slice(&slice);
+
+        self
+    }
+}
+
+unsafe extern "system" fn remote_thread_proc(l_param: LPVOID) -> u32 {
+    let RemoteParam {
+        command,
+        value_u32,
+        value_f32,
+        ref title,
+        ref content,
+        ref message_box_w_proc,
+    } = *(l_param as *const RemoteParam);
+//    (*(message_box_w_proc as *const _ as *const MessageBoxProc))(0 as _, content as *const [u16] as _, title as *const [u16] as _, 0);
+    match command {
+        //  exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x2C]
+        1 => asm! {r"
+            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+            mov ecx, dword ptr ds:[ecx + 0x20]
+            mov dword ptr ds:[ecx + 0x2C], $0"
+            :
+            : "r"(value_u32)
+            :
+            : "volatile", "intel"
+        },
+        // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x3C]
+        2 => asm! {r"
+            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+            mov ecx, dword ptr ds:[ecx + 0x3FB8]
+            mov dword ptr ds:[ecx + 0x3C], $0"
+            :
+            : "r"(0)
+            :
+            : "volatile", "intel"
+        },
+        // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x38]
+        3 => asm! {r"
+            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+            mov ecx, dword ptr ds:[ecx + 0x3FB8]
+            mov dword ptr ds:[ecx + 0x38], $0"
+            :
+            : "r"(value_u32)
+            :
+            : "volatile", "intel"
+        },
+        // exp = [[0x004C0E2C + 0x14] + 0x3F34]
+        4 => asm! {r"
+            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+            mov dword ptr ds:[ecx + 0x3F34], $0"
+            :
+            : "r"(value_u32)
+            :
+            : "volatile", "intel"
+        },
+        // exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x30]
+        5 => (),
+        _ => ()
+    }
+
+    0
 }
 
 impl Cheat {
@@ -136,8 +172,8 @@ impl Cheat {
 
             self.remote_param
                 .message_box_proc(*self.process.0.get("MessageBoxW").unwrap())
-                .message_box_title("Author: Xavier")
-                .message_box_content("Inject succeed");
+                .title("Author: Xavier")
+                .content("Inject succeed");
 
             if ptr.is_null() { return Err(CheatError::VirtualAllocError); } else { self.write_process_memory(ptr, &self.remote_param as *const RemoteParam, size)?; }
 
@@ -189,8 +225,11 @@ impl Cheat {
 //        let ptr = self.get_ptr(vec![0x14, 0x20, 0x2C])?;
 //        self.write_process_memory(ptr, &value as *const u32, 4)?;
 
-        self.remote_param.command = 1;
-        self.remote_param.value_u32 = value;
+        self.remote_param
+            .command(1)
+            .value_u32(value)
+            .title("Hack")
+            .content(&format!("Game timer = {}", value));
         self.write_process_memory(self.remote_param_ptr, &self.remote_param as _, size_of::<RemoteParam>())?;
         self.create_remote_thread()?;
 
@@ -202,8 +241,11 @@ impl Cheat {
 //        let ptr = self.get_ptr(vec![0x14, 0x3FB8, 0x3C])?;
 //        self.write_process_memory(ptr, &value as *const u32, 4)?;
 
-        self.remote_param.command = 2;
-        self.remote_param.value_u32 = value;
+        self.remote_param
+            .command(2)
+            .value_u32(value)
+            .title("Hack")
+            .content(&format!("Chance = {}", value));
         self.write_process_memory(self.remote_param_ptr, &self.remote_param as _, size_of::<RemoteParam>())?;
         self.create_remote_thread()?;
 
@@ -215,8 +257,11 @@ impl Cheat {
 //        let ptr = self.get_ptr(vec![0x14, 0x3FB8, 0x38])?;
 //        self.write_process_memory(ptr, &value as *const u32, 4)?;
 
-        self.remote_param.command = 3;
-        self.remote_param.value_u32 = value;
+        self.remote_param
+            .command(3)
+            .value_u32(value)
+            .title("Hack")
+            .content(&format!("Tip = {}", value));
         self.write_process_memory(self.remote_param_ptr, &self.remote_param as _, size_of::<RemoteParam>())?;
         self.create_remote_thread()?;
 
@@ -228,8 +273,11 @@ impl Cheat {
 //        let ptr = self.get_ptr(vec![0x14, 0x3F34])?;
 //        self.write_process_memory(ptr, &value as *const u32, 4)?;
 
-        self.remote_param.command = 4;
-        self.remote_param.value_u32 = value;
+        self.remote_param
+            .command(4)
+            .value_u32(value)
+            .title("Hack")
+            .content(&format!("Score = {}", value));
         self.write_process_memory(self.remote_param_ptr, &self.remote_param as _, size_of::<RemoteParam>())?;
         self.create_remote_thread()?;
 
@@ -241,8 +289,11 @@ impl Cheat {
 //        let ptr = self.get_ptr(vec![0x14, 0x20, 0x30])?;
 //        self.write_process_memory(ptr, &value as *const f32, 4)?;
 
-        self.remote_param.command = 5;
-        self.remote_param.value_f32 = value;
+        self.remote_param
+            .command(5)
+            .value_f32(value)
+            .title("Hack")
+            .content(&format!("Combo timer = {}", value));
         self.write_process_memory(self.remote_param_ptr, &self.remote_param as _, size_of::<RemoteParam>())?;
         self.create_remote_thread()?;
 

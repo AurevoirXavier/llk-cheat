@@ -8,8 +8,6 @@ use winapi::{
     },
     um::winnt::HANDLE,
 };
-// --- custom ---
-use super::Cheat;
 
 const WINDOW_NAME: &'static str = "连连看5";
 
@@ -57,34 +55,6 @@ impl Processes {
         self.0.insert(process.to_owned(), process_ptr);
 
         self
-    }
-}
-
-impl Cheat {
-    pub fn read_process_memory(&self, address: LPVOID, buffer: LPVOID, size: usize) -> Result<(), CheatError> {
-        // --- external ---
-        use winapi::um::memoryapi::ReadProcessMemory;
-
-        let result = unsafe { ReadProcessMemory(self.target_proc, address, buffer, size, 0 as _) };
-        if result == 0 { Err(CheatError::ReadProcessMemoryError) } else { Ok(()) }
-    }
-
-    pub fn write_process_memory<T>(&self, address: LPVOID, buffer: *const T, size: usize) -> Result<(), CheatError> {
-        // --- external ---
-        use winapi::um::memoryapi::WriteProcessMemory;
-
-        let result = unsafe { WriteProcessMemory(self.target_proc, address, buffer as LPCVOID, size, 0 as _) };
-        if result == 0 { Err(CheatError::WriteProcessMemoryError) } else { Ok(()) }
-    }
-
-    pub fn create_remote_thread(&self) -> Result<(), CheatError> {
-        // --- external ---
-        use winapi::um::processthreadsapi::CreateRemoteThread;
-        // --- custom ---
-        use super::RemoteThreadProc;
-
-        let handle = unsafe { CreateRemoteThread(self.target_proc, 0 as _, 0, Some(*(&self.remote_proc_ptr as *const _ as *const RemoteThreadProc)), self.remote_param_ptr, 0, 0 as _) };
-        if handle.is_null() { Err(CheatError::CreateRemoteThreadError) } else { Ok(()) }
     }
 }
 
@@ -156,4 +126,30 @@ pub fn open_process(process_id: u32) -> Result<HANDLE, CheatError> {
 
     let handle = unsafe { OpenProcess(PROCESS_ALL_ACCESS, TRUE, process_id) };
     if handle.is_null() { Err(CheatError::OpenProcessError) } else { Ok(handle) }
+}
+
+pub fn read_process_memory(handle: HANDLE, address: LPVOID, buffer: LPVOID, size: usize) -> Result<(), CheatError> {
+    // --- external ---
+    use winapi::um::memoryapi::ReadProcessMemory;
+
+    let result = unsafe { ReadProcessMemory(handle, address, buffer, size, 0 as _) };
+    if result == 0 { Err(CheatError::ReadProcessMemoryError) } else { Ok(()) }
+}
+
+pub fn write_process_memory<T>(handle: HANDLE, address: LPVOID, buffer: *const T, size: usize) -> Result<(), CheatError> {
+    // --- external ---
+    use winapi::um::memoryapi::WriteProcessMemory;
+
+    let result = unsafe { WriteProcessMemory(handle, address, buffer as LPCVOID, size, 0 as _) };
+    if result == 0 { Err(CheatError::WriteProcessMemoryError) } else { Ok(()) }
+}
+
+pub fn create_remote_thread(handle: HANDLE, proc: LPVOID, param: LPVOID) -> Result<(), CheatError> {
+    // --- external ---
+    use winapi::um::processthreadsapi::CreateRemoteThread;
+    // --- custom ---
+    use super::remote::RemoteProc;
+
+    let handle = unsafe { CreateRemoteThread(handle, 0 as _, 0, Some(*(&proc as *const _ as *const RemoteProc)), param, 0, 0 as _) };
+    if handle.is_null() { Err(CheatError::CreateRemoteThreadError) } else { Ok(()) }
 }

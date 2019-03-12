@@ -22,7 +22,7 @@ struct RemoteParam {
     command: u8,
     value_u32: u32,
     value_f32: f32,
-    message_box_w_proc: FARPROC,
+    message_box_w: FARPROC,
     title: [u16; 100],
     content: [u16; 100],
 }
@@ -43,7 +43,7 @@ impl RemoteParam {
             value_f32: 0.,
             title: [0; 100],
             content: [0; 100],
-            message_box_w_proc: 0 as _,
+            message_box_w: 0 as _,
         }
     }
 
@@ -63,7 +63,7 @@ impl RemoteParam {
     }
 
     fn message_box_proc(&mut self, ptr: FARPROC) -> &mut Self {
-        self.message_box_w_proc = ptr;
+        self.message_box_w = ptr;
         self
     }
 
@@ -91,53 +91,61 @@ unsafe extern "system" fn remote_thread_proc(l_param: LPVOID) -> u32 {
         value_f32,
         ref title,
         ref content,
-        ref message_box_w_proc,
+        ref message_box_w,
     } = *(l_param as *const RemoteParam);
-//    (*(message_box_w_proc as *const _ as *const MessageBoxProc))(0 as _, content as *const [u16] as _, title as *const [u16] as _, 0);
-    match command {
-        //  exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x2C]
-        1 => asm! {r"
-            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
-            mov ecx, dword ptr ds:[ecx + 0x20]
-            mov dword ptr ds:[ecx + 0x2C], $0"
-            :
-            : "r"(value_u32)
-            :
-            : "volatile", "intel"
-        },
-        // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x3C]
-        2 => asm! {r"
-            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
-            mov ecx, dword ptr ds:[ecx + 0x3FB8]
-            mov dword ptr ds:[ecx + 0x3C], $0"
-            :
-            : "r"(0)
-            :
-            : "volatile", "intel"
-        },
-        // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x38]
-        3 => asm! {r"
-            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
-            mov ecx, dword ptr ds:[ecx + 0x3FB8]
-            mov dword ptr ds:[ecx + 0x38], $0"
-            :
-            : "r"(value_u32)
-            :
-            : "volatile", "intel"
-        },
-        // exp = [[0x004C0E2C + 0x14] + 0x3F34]
-        4 => asm! {r"
-            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
-            mov dword ptr ds:[ecx + 0x3F34], $0"
-            :
-            : "r"(value_u32)
-            :
-            : "volatile", "intel"
-        },
-        // exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x30]
-        5 => (),
-        _ => ()
-    }
+    (*(message_box_w as *const _ as *const MessageBoxProc))(0 as _, content as *const [u16] as _, title as *const [u16] as _, 0);
+//    match command {
+//        //  exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x2C]
+//        1 => asm! {r"
+//            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+//            mov ecx, dword ptr ds:[ecx + 0x20]
+//            mov dword ptr ds:[ecx + 0x2C], $0"
+//            :
+//            : "r"(value_u32)
+//            :
+//            : "volatile", "intel"
+//        },
+//        // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x3C]
+//        2 => asm! {r"
+//            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+//            mov ecx, dword ptr ds:[ecx + 0x3FB8]
+//            mov dword ptr ds:[ecx + 0x3C], $0"
+//            :
+//            : "r"(value_u32)
+//            :
+//            : "volatile", "intel"
+//        },
+//        // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x38]
+//        3 => asm! {r"
+//            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+//            mov ecx, dword ptr ds:[ecx + 0x3FB8]
+//            mov dword ptr ds:[ecx + 0x38], $0"
+//            :
+//            : "r"(value_u32)
+//            :
+//            : "volatile", "intel"
+//        },
+//        // exp = [[0x004C0E2C + 0x14] + 0x3F34]
+//        4 => asm! {r"
+//            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+//            mov dword ptr ds:[ecx + 0x3F34], $0"
+//            :
+//            : "r"(value_u32)
+//            :
+//            : "volatile", "intel"
+//        },
+//        // exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x30]
+//        5 => asm! {r"
+//            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+//            mov ecx, dword ptr ds:[ecx + 0x20]
+//            mov dword ptr ds:[ecx + 0x30], $0"
+//            :
+//            : "r"(value_f32)
+//            :
+//            : "volatile", "intel"
+//        },
+//        _ => ()
+//    }
 
     0
 }
@@ -187,6 +195,7 @@ impl Cheat {
             self.remote_proc_ptr = ptr;
         }
 
+        println!("{:x}", self.remote_proc_ptr as u64);
         self.create_remote_thread()
     }
 

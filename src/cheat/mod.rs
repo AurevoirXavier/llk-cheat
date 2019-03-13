@@ -1,9 +1,17 @@
 mod remote;
 mod util;
 
+// --- std ---
+use std::{
+    thread::sleep,
+    time::Duration,
+};
 // --- external ---
 use winapi::{
-    shared::minwindef::{LPDWORD, LPVOID},
+    shared::{
+        minwindef::{LPDWORD, LPVOID},
+        windef::HWND,
+    },
     um::winnt::HANDLE,
 };
 // --- custom ---
@@ -14,8 +22,21 @@ use self::{
 
 const BASE_ADDRESS: u32 = 0x4C0E2C;
 
+
+struct Cell { v: u8, x: u8, y: u8 }
+
+impl Cell {
+    fn x_y(&self, x: u32, y: u32, x_edge: u32, y_edge: u32) -> (isize, isize) {
+        (
+            (self.x as u32 * x + x_edge + 1) as _,
+            (self.y as u32 * y + y_edge + 1) as _
+        )
+    }
+}
+
 struct Cheat {
     process: Processes,
+    target_window: HWND,
     target_proc: HANDLE,
     remote_f32: LPVOID,
     remote_info: (LPVOID, RemoteInfo),
@@ -26,6 +47,7 @@ impl Cheat {
     fn new() -> Cheat {
         Cheat {
             process: Processes::new().add("user32.dll", "MessageBoxW"),
+            target_window: 0 as _,
             target_proc: 0 as _,
             remote_f32: 0 as _,
             remote_info: (0 as _, RemoteInfo::new()),
@@ -109,21 +131,69 @@ impl Cheat {
         create_remote_thread(self.target_proc, self.remote_procs[5], self.remote_f32)
     }
 
-    fn hack_cells(&self) -> Result<[u32; 400], CheatError> {
+    fn hack_cells(&self) -> Result<Vec<Vec<Cell>>, CheatError> {
         // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x180]
         let ptr = self.get_ptr(vec![0x14, 0x3FB8, 0x180])?;
 
-        let mut cells = [0; 400];
+        let mut cells = [0u32; 400];
         read_process_memory(self.target_proc, ptr, cells.as_mut_ptr() as _, 1600)?;
 
-        Ok(cells)
+        let start = cells[0..50]
+            .splitn(2, |&x| x != 0xffffffff)
+            .next()
+            .unwrap()
+            .len();
+        let end = 50 - cells[0..50]
+            .rsplitn(2, |&x| x != 0xffffffff)
+            .next()
+            .unwrap()
+            .len();
+        let mut col = vec![];
+
+        for (y, chunk) in cells.chunks(50).enumerate() {
+            let row = &chunk[start..end];
+            if row[0] == 0xffffffff { continue; } else {
+                col.push(row.iter()
+                    .enumerate()
+                    .map(|(x, &v)| Cell { v: v as _, x: x as _, y: y as _ })
+                    .collect());
+            }
+        }
+
+        Ok(col)
+    }
+
+    fn eliminate_cells(&self, x: u32, y: u32, x_edge: u32, y_edge: u32, scale: f32) -> Result<(), CheatError> {
+        // --- external ---
+        use winapi::um::winuser::{WM_LBUTTONDOWN, WM_LBUTTONUP, SendMessageA};
+
+        sleep(Duration::from_secs(3));
+
+        let (x, y) = ((x as f32 / scale) as u32, (y as f32 / scale) as u32);
+        let (x_edge, y_edge) = ((x_edge as f32 / scale) as u32, (y_edge as f32 / scale) as u32);
+
+        for row in 0..8 {
+            for col in 0..16 {
+                let cell = Cell { v: 0, y: row, x: col };
+                let (x, y) = cell.x_y(x, y, x_edge, y_edge);
+
+                unsafe {
+                    SendMessageA(self.target_window, WM_LBUTTONDOWN, 1, (y << 16) + x);
+                    SendMessageA(self.target_window, WM_LBUTTONUP, 0, (y << 16) + x);
+                }
+
+                sleep(Duration::from_millis(1))
+            }
+        }
+
+        Ok(())
     }
 
     fn option(&mut self) -> Result<(), CheatError> {
         // --- std ---
         use std::io::{Write, stdin, stdout};
 
-        print!("1.hack game time\n2.hack chance\n3.hack tip\n4.hack score\n5.hack combo time\n6.hack cells\npress any other key to exit\n$>: ");
+        print!("1.hack game time\n2.hack chance\n3.hack tip\n4.hack score\n5.hack combo time\n6.hack cells\n7.eliminate cells\npress any other key to exit\n$>: ");
         stdout().flush().unwrap();
         let mut function = String::new();
         stdin().read_line(&mut function).unwrap();
@@ -137,25 +207,16 @@ impl Cheat {
             "4" => self.hack_score(2000)?,
             "5" => self.hack_combo_timer(2000.)?,
             "6" => {
-                let cells = {
-                    let mut col = vec![];
-                    for chunk in self.hack_cells()?.chunks(50) {
-                        let mut row = vec![];
-                        for &x in chunk.iter() { if x == 0xffffffff { continue; } else { row.push(x); } }
-                        if !row.is_empty() { col.push(row); }
-                    }
-
-                    col
-                };
-
+                let cells = self.hack_cells()?;
                 println!("cells: [");
                 for row in cells {
                     print!("    ");
-                    for cell in row { print!("{:2}, ", cell); }
+                    for cell in row { print!("[{:3}, ({:2}, {:2})], ", cell.v, cell.x, cell.y); }
                     println!();
                 }
                 println!("]");
             }
+            "7" => self.eliminate_cells(58, 64, 40, 88, 1.25)?,
             _ => return Err(CheatError::Exit)
         }
 
@@ -164,12 +225,6 @@ impl Cheat {
 }
 
 pub fn run() {
-    // --- std ---
-    use std::{
-        thread::sleep,
-        time::Duration,
-    };
-
     let mut cheat = Cheat::new();
     'inject: loop {
         if let Err(e) = cheat.inject() { println!("{:?}", e); } else {

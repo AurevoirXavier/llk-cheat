@@ -19,13 +19,13 @@ pub unsafe extern "system" fn info(l_param: LPVOID) -> u32 {
 pub unsafe extern "system" fn game_timer(value: LPVOID) -> u32 {
     //  exp = [[[0x4C0E2C + 0x14] + 0x20] + 0x2C]
     asm! {r"
-            mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
-            mov ecx, dword ptr ds:[ecx + 0x20]
-            mov dword ptr ds:[ecx + 0x2C], $0"
-            :
-            : "r"(value as u32)
-            :
-            : "volatile", "intel"
+        mov ecx, dword ptr ds:[0x4C0E2C + 0x14]
+        mov ecx, dword ptr ds:[ecx + 0x20]
+        mov dword ptr ds:[ecx + 0x2C], $0"
+        :
+        : "r"(value as u32)
+        :
+        : "intel", "volatile"
     }
 
     0
@@ -40,7 +40,7 @@ pub unsafe extern "system" fn chance(value: LPVOID) -> u32 {
         :
         : "r"(value as u32)
         :
-        : "volatile", "intel"
+        : "intel", "volatile"
     }
 
     0
@@ -55,7 +55,7 @@ pub unsafe extern "system" fn tip(value: LPVOID) -> u32 {
         :
         : "r"(value as u32)
         :
-        : "volatile", "intel"
+        : "intel", "volatile"
     }
 
     0
@@ -69,7 +69,7 @@ pub unsafe extern "system" fn score(value: LPVOID) -> u32 {
         :
         : "r"(value as u32)
         :
-        : "volatile", "intel"
+        : "intel", "volatile"
     }
 
     0
@@ -84,7 +84,7 @@ pub unsafe extern "system" fn combo_time(value: LPVOID) -> u32 {
         :
         : "r"(*(value as *const f32))
         :
-        : "volatile", "intel"
+        : "intel", "volatile"
     }
 
     0

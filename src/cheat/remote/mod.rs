@@ -15,18 +15,19 @@ use winapi::{
     },
 };
 // --- custom ---
+use self::param::MessageBoxProc;
 use super::{
     Cheat,
     util::*,
 };
-use self::{param::MessageBoxProc};
 
 mod proc;
 mod param;
 
 impl Cheat {
     fn open_process(&mut self) -> Result<(), CheatError> {
-        self.target_proc = open_process(get_window_thread_process_id(find_window()?)?)?;
+        self.target_window = find_window()?;
+        self.target_proc = open_process(get_window_thread_process_id(self.target_window)?)?;
         Ok(())
     }
 
@@ -45,7 +46,7 @@ impl Cheat {
         }
     }
 
-    fn inject_f32(&mut self) -> Result<(), CheatError>  {
+    fn inject_f32(&mut self) -> Result<(), CheatError> {
         let ptr = unsafe { VirtualAllocEx(self.target_proc, 0 as _, 4, MEM_COMMIT, PAGE_READWRITE) };
         if ptr.is_null() { return Err(CheatError::VirtualAllocError); } else {
             self.remote_f32 = ptr;
@@ -63,7 +64,7 @@ impl Cheat {
             chance,
             tip,
             score,
-            combo_time
+            combo_time,
         ].iter().enumerate() { self.remote_procs[i] = inject_proc(self.target_proc, proc, 256)?; }
 
         create_remote_thread(self.target_proc, self.remote_procs[0], self.remote_info.0)

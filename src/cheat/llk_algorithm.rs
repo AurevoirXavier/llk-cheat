@@ -1,128 +1,205 @@
+// --- std ---
+use std::collections::{
+    HashSet,
+    vec_deque::VecDeque,
+};
 // --- custom ---
-use super::Cell;
+use super::Cells;
 
-fn horizon_detect(c1: &Cell, c2: &Cell) -> bool {
-    if c1.y == c2.y {
-        let (l, r) = if c1.x < c2.x { (c1, c2) } else { (c2, c1) };
-        if l.e == r.x - l.x - 1 { return true; }
+impl Cells {
+    fn horizon(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> bool {
+        if y1 != y2 { return false; }
+
+        let (l, r) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
+        for x in l + 1..r { if self.0[y1][x] != 255 { return false; } }
+
+        true
     }
 
-    false
-}
+    fn vertical(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> bool {
+        if x1 != x2 { return false; }
 
-fn vertical_detect(c1: &Cell, c2: &Cell) -> bool {
-    if c1.x == c2.x {
-        let (t, b) = if c1.y < c2.y { (c1, c2) } else { (c2, c1) };
-        if t.s == b.y - t.y - 1 { return true; }
+        let (u, d) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
+        for y in u + 1..d { if self.0[y][x1] != 255 { return false; } }
+
+        true
     }
 
-    false
-}
+    fn one_turn(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> bool {
+        if x1 == x2 || y1 == y2 { return false; }
 
-fn turn_once_detect(c1: &Cell, c2: &Cell) -> bool {
-    let (l, r) = if c1.x < c2.x { (c1, c2) } else { (c2, c1) };
-    let h_d = r.x - l.x;
+        if self.0[y1][x2] == 255 && self.horizon(x2, y1, x1, y1) && self.vertical(x2, y1, x2, y2) { return true; }
+        if self.0[y2][x1] == 255 && self.horizon(x1, y2, x2, y2) && self.vertical(x1, y2, x1, y1) { return true; }
 
-    if l.y > r.y {
-        let v_d = r.y - l.y;
-
-        if l.e == h_d && r.n == v_d { return true; }
-        if l.s == v_d && r.w == h_d { return true; }
-    } else {
-        let v_d = l.y - r.y;
-
-        if l.n == v_d && r.w == h_d { return true; }
-        if l.e == h_d && r.s == v_d { return true; }
+        false
     }
 
-    false
-}
+    fn two_turn(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> bool {
+        for x in 0..x1 { if self.0[y1][x] == 255 && self.horizon(x, y1, x1, y1) && self.one_turn(x, y1, x2, y2) { return true; } }
+        for x in x1 + 1..self.0[0].len() { if self.0[y1][x] == 255 && self.horizon(x, y1, x1, y1) && self.one_turn(x, y1, x2, y2) { return true; } }
 
-fn turn_twice_detect(c1: &Cell, c2: &Cell, cells: &Vec<Vec<Cell>>) -> bool {
-    {
-        {
-            let x = c1.x + c1.e;
-            let c3 = &cells[c1.y as usize][x as usize];
-            if turn_once_detect(c2, c3) { return true; }
-        }
-        {
-            let x = c1.x - c1.w;
-            let c3 = &cells[c1.y as usize][x as usize];
-            if turn_once_detect(c2, c3) { return true; }
-        }
-        {
-            let y = c1.y + c1.s;
-            let c3 = &cells[y as usize][c1.x as usize];
-            if turn_once_detect(c2, c3) { return true; }
-        }
-        {
-            let y = c1.y - c1.n;
-            let c3 = &cells[y as usize][c1.x as usize];
-            if turn_once_detect(c2, c3) { return true; }
-        }
-    }
-    {
-        {
-            let x = c2.x + c2.e;
-            let c3 = &cells[c2.y as usize][x as usize];
-            if turn_once_detect(c1, c3) { return true; }
-        }
-        {
-            let x = c2.x - c2.w;
-            let c3 = &cells[c2.y as usize][x as usize];
-            if turn_once_detect(c1, c3) { return true; }
-        }
-        {
-            let y = c2.y + c2.s;
-            let c3 = &cells[y as usize][c2.x as usize];
-            if turn_once_detect(c1, c3) { return true; }
-        }
-        {
-            let y = c2.y - c2.n;
-            let c3 = &cells[y as usize][c2.x as usize];
-            if turn_once_detect(c1, c3) { return true; }
-        }
+        for y in 0..y1 { if self.0[y][x1] == 255 && self.vertical(x1, y, x1, y1) && self.one_turn(x1, y, x2, y2) { return true; } }
+        for y in y1 + 1..self.0.len() { if self.0[y][x1] == 255 && self.vertical(x1, y, x1, y1) && self.one_turn(x1, y, x2, y2) { return true; } }
+
+        false
     }
 
-    false
-}
+    fn groups(&self) -> VecDeque<HashSet<(usize, usize)>> {
+        // --- std ---
+        use std::collections::HashMap;
 
-fn pair(c1: &Cell, c2: &Cell, cells: &Vec<Vec<Cell>>) -> bool { horizon_detect(c1, c2) || vertical_detect(c1, c2) || turn_once_detect(c1, c2) || turn_twice_detect(c1, c2, cells) }
+        let mut groups = HashMap::new();
+        for y in 0..self.0.len() {
+            for x in 0..self.0[0].len() {
+                if self.0[y][x] == 255 { continue; }
 
-fn groups(cells: &Vec<Vec<Cell>>) -> Vec<Vec<&Cell>> {
-    // --- std ---
-    use std::collections::HashMap;
-
-    let mut groups = HashMap::new();
-    for row in cells {
-        for cell in row {
-            if cell.v == 255 { continue; }
-
-            let pair = groups.entry(cell.v).or_insert(vec![]);
-            pair.push(cell);
-        }
-    }
-
-    groups.into_iter()
-        .map(|(_, v)| v)
-        .collect()
-}
-
-pub fn solve(mut cells: Vec<Vec<Cell>>) -> Vec<Cell> {
-    let mut groups = groups(&cells);
-    while !groups.is_empty() {
-        for i in 0..groups.len() {
-            let len = groups[i].len();
-            for j in 0..len {
-                if groups[i][j].v == 255 { continue; }
-                for k in 0..len {
-                    if j == k || groups[i][k].v == 255 { continue; }
-
-                    if pair(groups[i][j], groups[i][k], cells) {}
-                }
+                let group = groups.entry(self.0[y][x]).or_insert(HashSet::new());
+                group.insert((x, y));
             }
         }
+
+        groups.into_iter()
+            .map(|(_, group)| group)
+            .collect()
     }
 
-    vec![]
+    pub fn solve(mut self) -> Vec<(usize, usize)> {
+        let mut result = vec![];
+        let mut groups = self.groups();
+        let mut retry = 0u32;
+
+        while let Some(mut group) = groups.pop_back() {
+            retry += 1;
+            let v: Vec<_> = group.iter().cloned().collect();
+
+            'pair: for i in 0..v.len() - 1 {
+                for j in i + 1..v.len() {
+                    let (x1, y1) = v[i];
+                    let (x2, y2) = v[j];
+                    if self.horizon(x1, y1, x2, y2) || self.vertical(x1, y1, x2, y2) || self.one_turn(x1, y1, x2, y2) || self.two_turn(x1, y1, x2, y2) {
+                        retry = 0;
+
+                        self.0[y1][x1] = 255;
+                        self.0[y2][x2] = 255;
+
+                        group.remove(&v[i]);
+                        group.remove(&v[j]);
+                        result.push(v[i]);
+                        result.push(v[j]);
+
+                        break 'pair;
+                    }
+                }
+            }
+
+            if !group.is_empty() { groups.push_front(group); }
+        }
+
+        result
+    }
+}
+
+#[test]
+fn test_h() {
+    let cells = Cells(vec![vec![1, 255, 2, 255, 1]]);
+    assert_eq!(false, cells.horizon(0, 0, 4, 0));
+
+    let cells = Cells(vec![vec![1, 1]]);
+    assert_eq!(true, cells.horizon(0, 0, 1, 0));
+
+    let cells = Cells(vec![vec![1, 255, 255, 255, 1]]);
+    assert_eq!(true, cells.horizon(0, 0, 4, 0));
+}
+
+#[test]
+fn test_v() {
+    let cells = Cells(vec![
+        vec![1],
+        vec![255],
+        vec![2],
+        vec![255],
+        vec![1],
+    ]);
+    assert_eq!(false, cells.vertical(0, 0, 0, 4));
+
+    let cells = Cells(vec![
+        vec![1],
+        vec![1],
+    ]);
+    assert_eq!(true, cells.vertical(0, 0, 0, 1));
+
+    let cells = Cells(vec![
+        vec![1],
+        vec![255],
+        vec![255],
+        vec![255],
+        vec![1],
+    ]);
+    assert_eq!(true, cells.vertical(0, 0, 0, 4));
+}
+
+#[test]
+fn test_o() {
+    let cells = Cells(vec![
+        vec![1, 2, 2, 2, 2],
+        vec![2, 2, 2, 2, 2],
+        vec![2, 2, 2, 2, 2],
+        vec![2, 2, 2, 2, 2],
+        vec![2, 2, 2, 2, 1],
+    ]);
+    assert_eq!(false, cells.one_turn(0, 0, 4, 4));
+
+    let cells = Cells(vec![
+        vec![1, 255],
+        vec![2, 1],
+    ]);
+    assert_eq!(true, cells.one_turn(0, 0, 1, 1));
+
+    let cells = Cells(vec![
+        vec![1, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 255, 255, 255, 1],
+    ]);
+    assert_eq!(true, cells.one_turn(0, 0, 4, 4));
+}
+
+#[test]
+fn test_t() {
+    let cells = Cells(vec![
+        vec![255, 2, 255, 255, 255],
+        vec![255, 1, 2, 2, 1],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+    ]);
+    assert_eq!(false, cells.two_turn(1, 1, 4, 1));
+
+    let cells = Cells(vec![
+        vec![255, 255, 255, 255, 255],
+        vec![255, 1, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 1],
+    ]);
+    assert_eq!(false, cells.two_turn(1, 1, 4, 4));
+
+    let cells = Cells(vec![
+        vec![255, 255, 255, 255, 255],
+        vec![255, 1, 2, 2, 1],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+        vec![255, 2, 2, 2, 2],
+    ]);
+    assert_eq!(true, cells.two_turn(1, 1, 4, 1));
+
+    let cells = Cells(vec![
+        vec![255, 255, 255, 255, 255],
+        vec![255, 1, 255, 2, 2],
+        vec![255, 2, 255, 2, 2],
+        vec![255, 2, 255, 2, 2],
+        vec![255, 2, 255, 255, 1],
+    ]);
+    assert_eq!(true, cells.two_turn(1, 1, 4, 4));
 }

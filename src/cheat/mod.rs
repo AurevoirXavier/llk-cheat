@@ -17,23 +17,13 @@ use winapi::{
 };
 // --- custom ---
 use self::{
-    llk_algorithm::*,
     remote::*,
     util::*,
 };
 
 const BASE_ADDRESS: u32 = 0x4C0E2C;
 
-pub struct Cell { pub v: u8, pub x: u8, pub y: u8, pub e: u8, pub s: u8, pub w: u8, pub n: u8 }
-
-impl Cell {
-    pub fn xy(&self, x: u32, y: u32, x_edge: u32, y_edge: u32) -> (isize, isize) {
-        (
-            (self.x as u32 * x + x_edge + 1) as _,
-            (self.y as u32 * y + y_edge + 1) as _
-        )
-    }
-}
+struct Cells(Vec<Vec<u8>>);
 
 struct Cheat {
     process: Processes,
@@ -132,7 +122,7 @@ impl Cheat {
         create_remote_thread(self.target_proc, self.remote_procs[5], self.remote_f32)
     }
 
-    fn hack_cells(&self) -> Result<Vec<Vec<Cell>>, CheatError> {
+    fn hack_cells(&self) -> Result<Cells, CheatError> {
         // exp = [[[0x4C0E2C + 0x14] + 0x3FB8] + 0x180]
         let ptr = self.get_ptr(vec![0x14, 0x3FB8, 0x180])?;
 
@@ -150,39 +140,38 @@ impl Cheat {
             .unwrap()
             .len();
 
-        let cells: Vec<Vec<Cell>> = buffer.chunks(50)
+        let cells: Vec<Vec<u8>> = buffer.chunks(50)
             .filter(|row| row.iter().any(|&v| v != 0xffffffff))
-            .enumerate()
-            .map(|(y, chunk)|
+            .map(|chunk|
                 chunk[start..end].iter()
-                    .enumerate()
-                    .map(|(x, &v)| Cell { v: v as _, x: x as _, y: (y + 1) as _, e: 1, s: 1, w: 1, n: 1 })
+                    .map(|&v| v as u8)
                     .collect())
             .collect();
 
-        let mut edge = vec![];
-        for x in 0..cells[0].len() { edge.push(Cell { v: 255, x: x as _, y: 0, e: 1, s: 1, w: 1, n: 1 }); }
-
-        let mut cells_with_edge = vec![edge];
+        let mut cells_with_edge = vec![vec![255; cells[0].len()]];
         for row in cells { cells_with_edge.push(row); }
 
-        let mut edge = vec![];
-        let y = cells_with_edge.len() as _;
-        for x in 0..cells_with_edge[0].len() { edge.push(Cell { v: 255, x: x as _, y, e: 1, s: 1, w: 1, n: 1 }); }
-
-        cells_with_edge.push(edge);
-        Ok(cells_with_edge)
+        cells_with_edge.push(vec![255; cells_with_edge[0].len()]);
+        Ok(Cells(cells_with_edge))
     }
 
-    fn eliminate_cells(&self, x: u32, y: u32, x_edge: u32, y_edge: u32, scale: f32) -> Result<(), CheatError> {
+    fn eliminate_cells(&self, w: u32, h: u32, x_edge: u32, y_edge: u32, scale: f32) -> Result<(), CheatError> {
         // --- external ---
         use winapi::um::winuser::{WM_LBUTTONDOWN, WM_LBUTTONUP, SendMessageA};
 
-//        sleep(Duration::from_secs(3));
+        let (x_edge, y_edge) = ((x_edge as f32 / scale) as u32, (y_edge as f32 / scale) as u32);
+        for (x, y) in self.hack_cells()?.solve() {
+            let x = ((x - 1) as u32 * w + x_edge + w / 2) as f32;
+            let y = ((y - 1) as u32 * h + y_edge + h / 2) as f32;
+            let xy = (((y / scale) as isize) << 16) + (x / scale) as isize;
 
-        solve(self.hack_cells()?);
-//        let (x, y) = ((x as f32 / scale) as u32, (y as f32 / scale) as u32);
-//        let (x_edge, y_edge) = ((x_edge as f32 / scale) as u32, (y_edge as f32 / scale) as u32);
+            unsafe {
+                SendMessageA(self.target_window, WM_LBUTTONDOWN, 1, xy);
+                SendMessageA(self.target_window, WM_LBUTTONUP, 0, xy);
+            }
+
+            sleep(Duration::from_millis(1));
+        }
 
         Ok(())
     }
@@ -206,10 +195,10 @@ impl Cheat {
             "5" => self.hack_combo_timer(2000.)?,
             "6" => {
                 let cells = self.hack_cells()?;
-                println!("cells: [");
-                for row in cells {
+                println!("format: [");
+                for (y, row) in cells.0.into_iter().enumerate() {
                     print!("    ");
-                    for Cell { v, x, y, e, s, w, n, .. } in row { print!("[v: {:3}, xy: ({:2}, {:2}), eswn: ({:2}, {:2}, {:2}, {:2})], ", v, x, y, e, s, w, n); }
+                    for (x, v) in row.into_iter().enumerate() { print!("({:3}, {:2}, {:2}), ", v, x, y); }
                     println!();
                 }
                 println!("]");
